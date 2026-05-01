@@ -24,7 +24,7 @@ log = logging.getLogger("pastewise.gemini")
 # Mutable config — updated at runtime via /config without restart
 _config: dict = {
     "api_key":    os.getenv("GEMINI_API_KEY", "AIzaSyDXxF1IiUqHfHG7fUyWZJ-FPN3sZVHDdr0"),
-    "model":      os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
+    "model":      os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
     "max_tokens": int(os.getenv("GEMINI_MAX_TOKENS", "512")),
 }
 
