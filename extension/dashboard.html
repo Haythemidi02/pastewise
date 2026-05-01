@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PasteWise — Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-base:    #1e1e2e;
+      --bg-surface: #181825;
+      --bg-card:    #24273a;
+      --border:     #313244;
+      --text-pri:   #cdd6f4;
+      --text-sec:   #a6adc8;
+      --text-muted: #6c7086;
+      --accent:     #cba6f7;
+      --blue:       #89b4fa;
+      --green:      #a6e3a1;
+      --yellow:     #f9e2af;
+      --red:        #f38ba8;
+      --teal:       #94e2d5;
+    }
+
+    html, body {
+      min-height: 100vh;
+      background: var(--bg-surface);
+      color: var(--text-pri);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* ── Layout ── */
+    .page {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+
+    /* ── Header ── */
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--accent);
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--bg-base);
+    }
+
+    .logo-text {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+    }
+
+    .logo-sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-left: 4px;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.8; }
+
+    .btn-ghost   { background: var(--bg-card); color: var(--text-sec); border: 1px solid var(--border); }
+    .btn-primary { background: var(--accent);  color: var(--bg-base); }
+
+    /* ── Section title ── */
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+    }
+
+    /* ── Top KPI strip ── */
+    .kpi-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .kpi-value {
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -1px;
+      color: var(--text-pri);
+    }
+
+    .kpi-value.accent  { color: var(--accent); }
+    .kpi-value.green   { color: var(--green);  }
+    .kpi-value.yellow  { color: var(--yellow); }
+    .kpi-value.blue    { color: var(--blue);   }
+
+    .kpi-label {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .kpi-delta {
+      font-size: 11px;
+      margin-top: 2px;
+    }
+    .kpi-delta.up   { color: var(--green); }
+    .kpi-delta.flat { color: var(--text-muted); }
+
+    /* ── Two column grid ── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .full-col { margin-bottom: 16px; }
+
+    /* ── Read rate gauge ── */
+    .gauge-wrap {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .gauge-svg { flex-shrink: 0; }
+
+    .gauge-info { flex: 1; }
+
+    .gauge-pct {
+      font-size: 36px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -1px;
+    }
+
+    .gauge-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    .gauge-legend {
+      margin-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-sec);
+    }
+
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── Streak calendar ── */
+    .streak-header {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .streak-count {
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--yellow);
+      line-height: 1;
+    }
+
+    .streak-label {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(14, 1fr);
+      gap: 4px;
+    }
+
+    .cal-day {
+      aspect-ratio: 1;
+      border-radius: 3px;
+      background: var(--border);
+      position: relative;
+      cursor: default;
+    }
+
+    .cal-day.active   { background: var(--accent); opacity: 0.85; }
+    .cal-day.today    { background: var(--accent); outline: 2px solid var(--text-pri); outline-offset: 1px; }
+    .cal-day.inactive { background: var(--bg-surface); }
+
+    .cal-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: center;
+      margin-bottom: 4px;
+    }
+
+    /* ── Concept map ── */
+    .concepts-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .concept-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-weight: 500;
+      cursor: default;
+      transition: transform 0.15s;
+    }
+    .concept-chip:hover { transform: translateY(-1px); }
+
+    .concept-chip.size-lg { font-size: 15px; background: #3b3057; color: var(--accent); }
+    .concept-chip.size-md { font-size: 13px; background: #1e3356; color: var(--blue);   }
+    .concept-chip.size-sm { font-size: 11px; background: #1e3a2f; color: var(--green);  }
+    .concept-chip.size-xs { font-size: 10px; background: var(--border); color: var(--text-sec); }
+
+    .chip-count {
+      font-size: 10px;
+      opacity: 0.65;
+      font-weight: 400;
+    }
+
+    /* ── Activity bar chart ── */
+    .bar-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      height: 80px;
+      margin-bottom: 8px;
+    }
+
+    .bar-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      height: 100%;
+      justify-content: flex-end;
+    }
+
+    .bar-fill-wrap {
+      width: 100%;
+      display: flex;
+      align-items: flex-end;
+      height: 68px;
+    }
+
+    .bar-rect {
+      width: 100%;
+      border-radius: 3px 3px 0 0;
+      background: var(--accent);
+      opacity: 0.75;
+      min-height: 2px;
+      transition: height 0.4s ease;
+    }
+
+    .bar-rect:hover { opacity: 1; }
+
+    .bar-day-label {
+      font-size: 9px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* ── Recent pastes table ── */
+    .paste-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .paste-table th {
+      text-align: left;
+      padding: 8px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .paste-table td {
+      padding: 10px 10px;
+      border-bottom: 1px solid var(--bg-surface);
+      vertical-align: middle;
+    }
+
+    .paste-table tr:last-child td { border-bottom: none; }
+    .paste-table tr:hover td { background: var(--bg-surface); }
+
+    .paste-snippet {
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      color: var(--blue);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 280px;
+    }
+
+    .paste-tags {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .mini-tag {
+      background: var(--border);
+      color: var(--text-sec);
+      border-radius: 10px;
+      padding: 1px 7px;
+      font-size: 10px;
+    }
+
+    .read-badge {
+      display: inline-block;
+      border-radius: 10px;
+      padding: 2px 8px;
+      font-size: 10px;
+      font-weight: 500;
+    }
+    .read-badge.yes { background: #1e3a2f; color: var(--green); }
+    .read-badge.no  { background: #3a1e1e; color: var(--red);   }
+
+    .time-cell { color: var(--text-muted); white-space: nowrap; }
+
+    /* ── Empty / loading / error states ── */
+    .state-placeholder {
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .state-placeholder .icon { font-size: 32px; }
+
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-banner {
+      background: #3a1e1e;
+      border: 1px solid #5a2020;
+      border-radius: 10px;
+      padding: 14px 18px;
+      font-size: 13px;
+      color: var(--red);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .error-banner code { color: var(--blue); font-size: 12px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 700px) {
+      .kpi-strip { grid-template-columns: 1fr 1fr; }
+      .two-col   { grid-template-columns: 1fr; }
+      .calendar-grid { grid-template-columns: repeat(7, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- Page header -->
+  <div class="page-header">
+    <div class="logo">
+      <div class="logo-icon">P</div>
+      <div>
+        <span class="logo-text">PasteWise</span>
+        <span class="logo-sub">Learning Dashboard</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ghost" id="btn-refresh">↻ Refresh</button>
+      <button class="btn btn-ghost" id="btn-settings">Settings</button>
+      <button class="btn btn-primary" id="btn-reset">Reset stats</button>
+    </div>
+  </div>
+
+  <!-- Error banner (hidden by default) -->
+  <div class="error-banner" id="error-banner" style="display:none">
+    <span>⚠ Backend not reachable — run
+      <code>uvicorn main:app --reload</code>
+      in the <code>backend/</code> folder, then
+      <a href="#" id="btn-retry-banner" style="color:var(--accent)">retry</a>.
+    </span>
+    <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px" id="btn-retry-sm">Retry</button>
+  </div>
+
+  <!-- KPI strip -->
+  <div class="kpi-strip" id="kpi-strip">
+    <div class="kpi-card">
+      <div class="kpi-value accent" id="kpi-intercepts">—</div>
+      <div class="kpi-label">Total intercepts</div>
+      <div class="kpi-delta flat" id="kpi-intercepts-delta"></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value green" id="kpi-read">—</div>
+      <div class="kpi-label">Read before pasting</div>
+      <div class="kpi-delta flat" id="kpi-read-delta"></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value blue" id="kpi-concepts">—</div>
+      <div class="kpi-label">Unique concepts seen</div>
+      <div class="kpi-delta flat" id="kpi-concepts-delta"></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value yellow" id="kpi-streak">—</div>
+      <div class="kpi-label">Day streak 🔥</div>
+      <div class="kpi-delta flat" id="kpi-streak-sub"></div>
+    </div>
+  </div>
+
+  <!-- Row 1: Read-rate gauge + Streak calendar -->
+  <div class="two-col">
+
+    <!-- Read-rate gauge -->
+    <div class="card">
+      <div class="section-title">Read-before-paste rate</div>
+      <div class="gauge-wrap">
+        <svg class="gauge-svg" width="110" height="110" viewBox="0 0 110 110">
+          <!-- Track -->
+          <circle cx="55" cy="55" r="44"
+            fill="none" stroke="#313244" stroke-width="10"
+            stroke-dasharray="207.3 1000"
+            stroke-dashoffset="-103.6"
+            stroke-linecap="round"/>
+          <!-- Fill — updated by JS -->
+          <circle id="gauge-arc" cx="55" cy="55" r="44"
+            fill="none" stroke="#a6e3a1" stroke-width="10"
+            stroke-dasharray="0 1000"
+            stroke-dashoffset="-103.6"
+            stroke-linecap="round"
+            style="transition: stroke-dasharray 0.6s ease, stroke 0.4s"/>
+          <text id="gauge-label" x="55" y="60"
+            text-anchor="middle"
+            font-size="18" font-weight="700"
+            fill="#cdd6f4"
+            font-family="-apple-system, BlinkMacSystemFont, sans-serif">—</text>
+        </svg>
+
+        <div class="gauge-info">
+          <div class="gauge-pct" id="gauge-pct" style="color: var(--green)">—</div>
+          <div class="gauge-desc" id="gauge-desc">
+            Start pasting to track your read rate.
+          </div>
+          <div class="gauge-legend">
+            <div class="legend-row">
+              <div class="legend-dot" style="background:var(--green)"></div>
+              Read before pasting
+            </div>
+            <div class="legend-row">
+              <div class="legend-dot" style="background:var(--border)"></div>
+              Pasted without reading
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Streak calendar -->
+    <div class="card">
+      <div class="section-title">Activity — last 28 days</div>
+      <div class="streak-header">
+        <span class="streak-count" id="dash-streak">0</span>
+        <span class="streak-label">day streak</span>
+      </div>
+      <div class="cal-label" id="cal-month-label"></div>
+      <div class="calendar-grid" id="calendar-grid"></div>
+    </div>
+
+  </div>
+
+  <!-- Row 2: Daily activity bar chart -->
+  <div class="full-col">
+    <div class="card">
+      <div class="section-title">Intercepts per day — last 14 days</div>
+      <div class="bar-chart" id="bar-chart"></div>
+    </div>
+  </div>
+
+  <!-- Row 3: Concept cloud -->
+  <div class="full-col">
+    <div class="card">
+      <div class="section-title">Concept map — all time</div>
+      <div class="concepts-wrap" id="concept-cloud">
+        <div class="state-placeholder">
+          <div class="icon">🧠</div>
+          <span>No concepts yet — intercept your first paste!</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 4: Recent pastes -->
+  <div class="full-col">
+    <div class="card">
+      <div class="section-title">Recent pastes</div>
+      <div id="recent-pastes-wrap">
+        <div class="state-placeholder" id="recent-loading">
+          <div class="spinner"></div>
+          <span>Loading…</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="dashboard.js"></script>
+</body>
+</html>
