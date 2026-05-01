@@ -8,12 +8,15 @@ import json
 import logging
 import os
 import re
+from pathlib import Path
 from typing import Any
 
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from the same directory as this file
+env_path = Path(__file__).parent / ".env"
+load_dotenv(env_path)
 
 log = logging.getLogger("pastewise.gemini")
 
@@ -23,18 +26,21 @@ log = logging.getLogger("pastewise.gemini")
 
 # Mutable config — updated at runtime via /config without restart
 _config: dict = {
-    "api_key":    os.getenv("GEMINI_API_KEY", "AIzaSyDXxF1IiUqHfHG7fUyWZJ-FPN3sZVHDdr0"),
-    "model":      os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
+    "api_key":    os.getenv("GEMINI_API_KEY", ""),
+    "model":      os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
     "max_tokens": int(os.getenv("GEMINI_MAX_TOKENS", "512")),
 }
 
 def _init_client() -> None:
     """Configure the Gemini SDK with the current API key."""
     if not _config["api_key"]:
-        log.warning("GEMINI_API_KEY is not set — AI calls will fail until configured.")
+        log.warning("⚠️  GEMINI_API_KEY is not set! Create backend/.env file with:")
+        log.warning("   GEMINI_API_KEY=your_key_from_https://aistudio.google.com/app/apikey")
+        log.warning("   GEMINI_MODEL=gemini-1.5-flash")
+        log.warning("   AI calls will fail until configured.")
         return
     genai.configure(api_key=_config["api_key"])
-    log.info(f"Gemini configured  model={_config['model']}  max_tokens={_config['max_tokens']}")
+    log.info(f"✅ Gemini configured  model={_config['model']}  max_tokens={_config['max_tokens']}")
 
 _init_client()
 
@@ -360,12 +366,15 @@ def _quick_fallback(error: str) -> dict[str, Any]:
     The popup will still render — it just shows a degraded message
     instead of leaving the user with a blank or broken UI.
     """
+    # Check if it's an API key issue
+    is_key_error = "api" in error.lower() or "key" in error.lower() or "configured" in error.lower()
+    if is_key_error:
+        summary_msg = "AI model unavailable: Missing or invalid API key. Create backend/.env with GEMINI_API_KEY from https://aistudio.google.com/app/apikey"
+    else:
+        summary_msg = f"AI model error: {error[:100]}. Check backend/.env configuration."
+    
     return {
-        "summary": (
-            "Could not generate an explanation — the AI model is unavailable. "
-            "Check that your Gemini API key is set correctly in options. "
-            f"Error: {error[:120]}"
-        ),
+        "summary": summary_msg,
         "tags":           [],
         "coverage_score": 0,
     }

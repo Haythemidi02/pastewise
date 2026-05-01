@@ -177,10 +177,15 @@ async def explain(req: ExplainRequest):
 
     except Exception as exc:
         log.error(f"Gemini call failed: {exc}")
-        raise HTTPException(
-            status_code=502,
-            detail=f"AI model error: {str(exc)}. Check your API key in options.",
-        )
+        error_msg = str(exc)
+        # Provide helpful guidance based on error type
+        if "API key" in error_msg or "not configured" in error_msg:
+            detail = "AI model error: API key not configured. Please create backend/.env with GEMINI_API_KEY set to your API key from https://aistudio.google.com/app/apikey"
+        elif "model" in error_msg.lower():
+            detail = "AI model error: Invalid model name. Check GEMINI_MODEL in backend/.env is set to 'gemini-1.5-flash' or 'gemini-1.5-pro'"
+        else:
+            detail = f"AI model error: {error_msg[:150]}. Make sure backend/.env has GEMINI_API_KEY set correctly."
+        raise HTTPException(status_code=502, detail=detail)
 
     # ── Record intercept in stats ──────────────────────────────────────────
     record_intercept(
