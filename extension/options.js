@@ -12,12 +12,17 @@ const SITES = [
   { name: "StackBlitz",   host: "stackblitz.com",    icon: "B" },
   { name: "JSFiddle",     host: "jsfiddle.net",      icon: "J" },
   { name: "Glitch",       host: "glitch.com",        icon: "~" },
+  { name: "Codeforces",   host: "codeforces.com",    icon: "Cf" },
+  { name: "AtCoder",      host: "atcoder.jp",        icon: "At" },
+  { name: "HackerRank",   host: "hackerrank.com",    icon: "Hr" },
+  { name: "Kaggle",       host: "kaggle.com",        icon: "Ka" },
+  { name: "Google Colab", host: "colab.research.google.com", icon: "Co" },
 ];
 
 const DEFAULTS = {
   port:        8000,
   apiKey:      "",
-  model:       "gemini-1.5-flash",
+  model:       "gemini-2.5-flash",
   maxTokens:   512,
   enabled:     true,
   shortSnips:  true,
@@ -68,6 +73,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 async function loadSettings() {
   return new Promise((resolve) => {
     chrome.storage.sync.get(DEFAULTS, (data) => {
+      // Auto-upgrade deprecated 1.5 models to 2.5
+      if (data.model === "gemini-1.5-flash") data.model = "gemini-2.5-flash";
+      if (data.model === "gemini-1.5-pro") data.model = "gemini-2.5-pro";
+      
       saved   = { ...DEFAULTS, ...data };
       current = { ...saved };
       resolve();

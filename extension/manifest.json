@@ -21,7 +21,12 @@
     "https://*.github.com/*",
     "https://*.stackblitz.com/*",
     "https://*.jsfiddle.net/*",
-    "https://*.glitch.com/*"
+    "https://*.glitch.com/*",
+    "https://codeforces.com/*",
+    "https://atcoder.jp/*",
+    "https://www.hackerrank.com/*",
+    "https://www.kaggle.com/*",
+    "https://colab.research.google.com/*"
   ],
 
   "background": {
@@ -39,7 +44,12 @@
         "https://*.github.com/*",
         "https://*.stackblitz.com/*",
         "https://*.jsfiddle.net/*",
-        "https://*.glitch.com/*"
+        "https://*.glitch.com/*",
+        "https://codeforces.com/*",
+        "https://atcoder.jp/*",
+        "https://www.hackerrank.com/*",
+        "https://www.kaggle.com/*",
+        "https://colab.research.google.com/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle",

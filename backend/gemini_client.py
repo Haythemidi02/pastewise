@@ -75,9 +75,10 @@ def _get_model() -> genai.GenerativeModel:
     return genai.GenerativeModel(
         model_name=_config["model"],
         generation_config={
-            "max_output_tokens": max(2048, _config["max_tokens"]), # Enforce minimum 2048
+            "max_output_tokens": max(2048, _config["max_tokens"]),
             "temperature": 0.2,
             "top_p": 0.8,
+            "response_mime_type": "application/json",
         },
     )
 
@@ -108,7 +109,8 @@ memoization, dynamic programming, binary search, sorting, linked list,
 tree traversal, graph traversal, regex, error handling, class, inheritance,
 polymorphism, interface, type annotation, immutability, side effect,
 pure function, currying, event loop, concurrency, threading, mutex,
-api call, http request, dom manipulation, state management, dependency injection
+api call, http request, dom manipulation, state management, dependency injection,
+sql query, join, aggregation, filtering, database schema, transaction
 
 coverage_score guide:
   0–30   trivial snippet (single expression, variable assignment)
@@ -152,27 +154,21 @@ Code:
 
 def _extract_json(raw: str) -> dict[str, Any]:
     """
-    Robustly extract a JSON object from Gemini's response.
-
-    Gemini occasionally wraps the JSON in markdown fences (```json ... ```)
-    or adds a brief preamble sentence. This function strips all of that
-    and raises ValueError if no valid JSON object can be found.
+    Extracts a JSON object from Gemini's response.
+    With response_mime_type="application/json", this should be straightforward,
+    but we still handle potential markdown fences or surrounding text just in case.
     """
-    # 1. Strip markdown code fences if present
+    # 1. Clean markdown fences
     text = re.sub(r"```(?:json)?\s*", "", raw).strip()
     text = text.replace("```", "").strip()
 
-    # 1.5 Strip trailing commas (very common Gemini hallucination)
-    text = re.sub(r",\s*([\]}])", r"\1", text)
-
-    # 2. Try parsing the whole string first (happy path)
+    # 2. Try direct parse
     try:
         return json.loads(text)
-    except json.JSONDecodeError as e:
-        log.warning(f"Initial JSON parse failed: {e}")
+    except json.JSONDecodeError:
         pass
 
-    # 3. Find the first { ... } block and try parsing that
+    # 3. Find the first { ... } block (fallback for messy responses)
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if match:
         try:
@@ -180,7 +176,8 @@ def _extract_json(raw: str) -> dict[str, Any]:
         except json.JSONDecodeError:
             pass
 
-    raise ValueError(f"Could not extract valid JSON from Gemini response:\n{raw}")
+    log.error(f"Failed to extract JSON from: {raw}")
+    raise ValueError(f"Could not extract valid JSON from Gemini response. Check logs for details.")
 
 
 # ──────────────────────────────────────────────────────────────────────────────

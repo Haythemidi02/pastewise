@@ -206,6 +206,9 @@
   }
 
   function destroyPopup(container) {
+    if (container && container.dataset.timerId) {
+      clearInterval(parseInt(container.dataset.timerId));
+    }
     hostEl?.remove();
     hostEl = null;
     shadowRoot = null;
@@ -250,6 +253,19 @@
   function showExplanation(container, result, { onPaste, onDeepDive, onCancel }) {
     const { summary = "", tags = [], coverage_score = 0 } = result;
 
+    let summaryHTML = escapeHTML(summary);
+    let secondsLeft = 0;
+    
+    // Detect rate limit messages and inject a span for the live countdown
+    const match = summary.match(/wait (\d+) seconds/);
+    if (match) {
+      secondsLeft = parseInt(match[1]);
+      summaryHTML = summaryHTML.replace(
+        /wait \d+ seconds/,
+        `wait <strong id="pw-countdown" style="color: #f9e2af;">${secondsLeft}</strong> seconds`
+      );
+    }
+
     const tagHTML = tags
       .map((t) => `<span class="pw-tag">${escapeHTML(t)}</span>`)
       .join("");
@@ -267,7 +283,7 @@
         </div>
 
         <div class="pw-body">
-          <p class="pw-summary">${escapeHTML(summary)}</p>
+          <p class="pw-summary">${summaryHTML}</p>
 
           <div class="pw-tags">${tagHTML}</div>
 
@@ -291,6 +307,22 @@
     shadowRoot.getElementById("pw-cancel")?.addEventListener("click", onCancel);
     shadowRoot.getElementById("pw-paste")?.addEventListener("click", onPaste);
     shadowRoot.getElementById("pw-deepdive")?.addEventListener("click", onDeepDive);
+
+    // Start live countdown if a rate limit was hit
+    if (secondsLeft > 0) {
+      const timerId = setInterval(() => {
+        secondsLeft--;
+        const el = container.querySelector("#pw-countdown");
+        if (el) {
+          el.textContent = Math.max(0, secondsLeft);
+        }
+        if (secondsLeft <= 0) {
+          clearInterval(timerId);
+          if (el) el.style.color = "#a6e3a1"; // turn green when ready
+        }
+      }, 1000);
+      container.dataset.timerId = timerId;
+    }
   }
 
   function showDeepDive(container, result, { onPaste, onCancel }) {
