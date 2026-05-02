@@ -9,6 +9,15 @@ from contextlib import asynccontextmanager
 import time
 import logging
 
+# ─── Logging ──────────────────────────────────────────────────────────────────
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s  %(levelname)-8s  %(message)s",
+    datefmt="%H:%M:%S",
+)
+log = logging.getLogger("pastewise")
+
 from database import init_db
 from models import (
     ExplainRequest,
@@ -32,15 +41,6 @@ from stats import (
     load_recent_pastes,
     reset_stats,
 )
-
-# ─── Logging ──────────────────────────────────────────────────────────────────
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(levelname)-8s  %(message)s",
-    datefmt="%H:%M:%S",
-)
-log = logging.getLogger("pastewise")
 
 # ─── Runtime config (overridable via /config without restart) ─────────────────
 
@@ -182,7 +182,7 @@ async def explain(req: ExplainRequest):
         if "API key" in error_msg or "not configured" in error_msg:
             detail = "AI model error: API key not configured. Please create backend/.env with GEMINI_API_KEY set to your API key from https://aistudio.google.com/app/apikey"
         elif "model" in error_msg.lower():
-            detail = "AI model error: Invalid model name. Check GEMINI_MODEL in backend/.env is set to 'gemini-1.5-flash' or 'gemini-1.5-pro'"
+            detail = "AI model error: Invalid model name. Check GEMINI_MODEL in backend/.env is set to 'gemini-2.5-flash' or 'gemini-2.5-pro'"
         else:
             detail = f"AI model error: {error_msg[:150]}. Make sure backend/.env has GEMINI_API_KEY set correctly."
         raise HTTPException(status_code=502, detail=detail)
@@ -195,7 +195,13 @@ async def explain(req: ExplainRequest):
     )
 
     # ── Cache the result ───────────────────────────────────────────────────
-    if runtime_config["cache"]:
+    is_fallback = False
+    if req.mode == "quick" and result.summary.startswith("AI "):
+        is_fallback = True
+    elif req.mode == "deep" and result.lines and result.lines[0].comment.startswith("AI "):
+        is_fallback = True
+
+    if runtime_config["cache"] and not is_fallback:
         set_cached(req.code, req.mode, result.model_dump())
 
     return result

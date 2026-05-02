@@ -27,7 +27,7 @@ log = logging.getLogger("pastewise.gemini")
 # Mutable config — updated at runtime via /config without restart
 _config: dict = {
     "api_key":    os.getenv("GEMINI_API_KEY", ""),
-    "model":      os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
+    "model":      os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
     "max_tokens": int(os.getenv("GEMINI_MAX_TOKENS", "512")),
 }
 
@@ -36,7 +36,7 @@ def _init_client() -> None:
     if not _config["api_key"]:
         log.warning("⚠️  GEMINI_API_KEY is not set! Create backend/.env file with:")
         log.warning("   GEMINI_API_KEY=your_key_from_https://aistudio.google.com/app/apikey")
-        log.warning("   GEMINI_MODEL=gemini-1.5-flash")
+        log.warning("   GEMINI_MODEL=gemini-2.5-flash")
         log.warning("   AI calls will fail until configured.")
         return
     genai.configure(api_key=_config["api_key"])
@@ -71,13 +71,14 @@ def _get_model() -> genai.GenerativeModel:
             "Gemini API key is not configured. "
             "Add GEMINI_API_KEY to backend/.env or set it in the extension options."
         )
+    # Use a raw dictionary to avoid older SDK bugs where genai.GenerationConfig kwargs are ignored
     return genai.GenerativeModel(
         model_name=_config["model"],
-        generation_config=genai.GenerationConfig(
-            max_output_tokens=_config["max_tokens"],
-            temperature=0.2,        # low temperature = consistent, factual output
-            top_p=0.8,
-        ),
+        generation_config={
+            "max_output_tokens": max(2048, _config["max_tokens"]), # Enforce minimum 2048
+            "temperature": 0.2,
+            "top_p": 0.8,
+        },
     )
 
 
@@ -93,10 +94,12 @@ no markdown fences, no extra text before or after.
 
 JSON schema (all fields required):
 {{
-  "summary":        "<3 sentences max — plain English, no jargon>",
-  "tags":           ["<concept>", ...],   // 3–6 tags from the list below
-  "coverage_score": <integer 0–100>        // how well this covers real concepts
+  "summary": "<3 sentences max — plain English, no jargon>",
+  "tags": ["<concept>", "<concept>"],
+  "coverage_score": <integer 0-100>
 }}
+
+Note: Provide 3-6 tags from the list below. The coverage_score should reflect how well the code covers real concepts.
 
 Concept tag examples (use these exact strings when applicable):
 closure, recursion, async/await, promise, callback, higher-order function,
@@ -114,6 +117,7 @@ coverage_score guide:
   86–100 dense — advanced patterns, worth studying carefully
 
 Code:
+{code}
 """
 
 _DEEP_PROMPT = """\
@@ -138,6 +142,7 @@ Rules:
 - For blank lines: {{"code": "", "comment": ""}}
 
 Code:
+{code}
 """
 
 
@@ -157,10 +162,14 @@ def _extract_json(raw: str) -> dict[str, Any]:
     text = re.sub(r"```(?:json)?\s*", "", raw).strip()
     text = text.replace("```", "").strip()
 
+    # 1.5 Strip trailing commas (very common Gemini hallucination)
+    text = re.sub(r",\s*([\]}])", r"\1", text)
+
     # 2. Try parsing the whole string first (happy path)
     try:
         return json.loads(text)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        log.warning(f"Initial JSON parse failed: {e}")
         pass
 
     # 3. Find the first { ... } block and try parsing that
@@ -171,7 +180,7 @@ def _extract_json(raw: str) -> dict[str, Any]:
         except json.JSONDecodeError:
             pass
 
-    raise ValueError(f"Could not extract valid JSON from Gemini response:\n{raw[:300]}")
+    raise ValueError(f"Could not extract valid JSON from Gemini response:\n{raw}")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -181,7 +190,7 @@ def _extract_json(raw: str) -> dict[str, Any]:
 async def _call_with_retry(
     prompt: str,
     retries: int = 3,
-    base_delay: float = 1.5,
+    base_delay: float = 3.0,
 ) -> str:
     """
     Calls the Gemini API asynchronously with exponential backoff.
@@ -209,7 +218,7 @@ async def _call_with_retry(
             if not text:
                 raise ValueError("Gemini returned an empty response.")
 
-            log.info(f"Gemini responded  attempt={attempt}  chars={len(text)}")
+            log.info(f"Gemini responded  attempt={attempt}  chars={len(text)}  reason={response.candidates[0].finish_reason if response.candidates else 'unknown'}")
             return text
 
         except Exception as exc:
@@ -367,11 +376,23 @@ def _quick_fallback(error: str) -> dict[str, Any]:
     instead of leaving the user with a blank or broken UI.
     """
     # Check if it's an API key issue
-    is_key_error = "api" in error.lower() or "key" in error.lower() or "configured" in error.lower()
-    if is_key_error:
+    is_key_error = "api key" in error.lower() or "not configured" in error.lower() or "api_key" in error.lower()
+    is_denied = "denied" in error.lower() or "403" in error.lower()
+    is_quota = "429" in error or "quota" in error.lower() or "rate limit" in error.lower()
+
+    if is_denied:
+        summary_msg = "AI model unavailable: Your API key project has been denied access (403). Please generate a new API key."
+    elif is_key_error:
         summary_msg = "AI model unavailable: Missing or invalid API key. Create backend/.env with GEMINI_API_KEY from https://aistudio.google.com/app/apikey"
+    elif is_quota:
+        import re
+        match = re.search(r"seconds:\s*(\d+)", error)
+        if match:
+            summary_msg = f"AI rate limit reached (429). Google is cooling down your API key. Please wait {match.group(1)} seconds."
+        else:
+            summary_msg = "AI rate limit reached (429). You are pasting too fast. Please wait 60 seconds."
     else:
-        summary_msg = f"AI model error: {error[:100]}. Check backend/.env configuration."
+        summary_msg = f"AI model error: {error}. Check backend/.env configuration."
     
     return {
         "summary": summary_msg,
@@ -387,9 +408,21 @@ def _deep_fallback(code: str, error: str) -> dict[str, Any]:
     """
     lines = code.splitlines()
     annotated = []
+    
+    is_quota = "429" in error or "quota" in error.lower() or "rate limit" in error.lower()
+    if is_quota:
+        import re
+        match = re.search(r"seconds:\s*(\d+)", error)
+        if match:
+            fallback_msg = f"Rate limit reached. Please wait {match.group(1)} seconds."
+        else:
+            fallback_msg = "Rate limit reached. Please wait 60 seconds."
+    else:
+        fallback_msg = f"AI unavailable: {error[:80]}"
+
     for i, line in enumerate(lines):
         annotated.append({
             "code":    line,
-            "comment": f"AI unavailable: {error[:80]}" if i == 0 else "",
+            "comment": fallback_msg if i == 0 else "",
         })
     return {"lines": annotated}
