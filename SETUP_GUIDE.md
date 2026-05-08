@@ -11,18 +11,23 @@ Follow these steps to set up PasteWise on your local machine.
 Before you begin, ensure you have:
 1. **Google Chrome** browser installed.
 2. **Python 3.9+** installed (check with `python --version`).
-3. A **Google Gemini API Key** (Free tier works perfectly!).
+3. A **Google Gemini API Key** and/or a **Hugging Face Access Token**.
 
 ---
 
-## 🛠️ Step 1: Get Your Gemini API Key
+## 🛠️ Step 1: Get Your AI API Keys
 
-PasteWise uses Google's Gemini 1.5 Flash model for lightning-fast code analysis.
+PasteWise supports multiple AI providers for redundancy and flexibility.
 
+### A. Google Gemini (Recommended)
 1.  Go to [Google AI Studio](https://aistudio.google.com/app/apikey).
-2.  Sign in with your Google account.
-3.  Click **"Create API key"**.
-4.  Copy the generated key (you'll need it in the next step).
+2.  Sign in and click **"Create API key"**.
+3.  Copy the key.
+
+### B. Hugging Face (Optional)
+1.  Go to [Hugging Face Settings](https://huggingface.co/settings/tokens).
+2.  Create a **New Token** (Type: Read).
+3.  Copy the token.
 
 ---
 
@@ -45,11 +50,18 @@ The backend is a FastAPI server that handles AI requests and stores your learnin
     pip install -r backend/requirements.txt
     ```
 5.  **Configure your API Key**:
-    -   In the `backend/` folder, rename `.env.example` to `.env`.
-    -   Open `.env` and paste your API key:
+    -   Open `.env` and configure your chosen provider(s):
         ```env
-        GEMINI_API_KEY=your_key_here
+        # Primary Provider: gemini or hf
+        AI_PROVIDER=gemini
+
+        # Google Gemini Config
+        GEMINI_API_KEY=your_gemini_key_here
         GEMINI_MODEL=gemini-1.5-flash
+
+        # Hugging Face Config (Optional)
+        HF_API_KEY=your_hf_token_here
+        HF_MODEL=Mistral-7B-Instruct-v0.3
         ```
 6.  **Start the server**:
     ```bash
@@ -91,7 +103,8 @@ Open the PasteWise popup from your toolbar and click **"Open Dashboard"**. You c
 ## ❓ Troubleshooting
 
 -   **"Backend not reachable"**: Ensure your terminal is still running the `uvicorn` command.
--   **"AI Model Error"**: Double-check your API key in `backend/.env` and ensure the model name is correct.
+-   **"AI Model Error"**: Double-check your API keys in `backend/.env`. If using Hugging Face, ensure your token has "Read" permissions.
+-   **Failover Active**: If the backend terminal shows "HF temporarily unhealthy", it has automatically switched to Gemini for 5 minutes to ensure your experience remains smooth.
 -   **Extension not showing up**: Make sure you are on one of the supported sites listed in `manifest.json` (GitHub, Replit, LeetCode, etc.).
 
 ---
