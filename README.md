@@ -1,78 +1,102 @@
+<p align="center">
+  <img src="C:\Users\Haythem\.gemini\antigravity\brain\9ff541de-57b9-469e-a877-9dddbbb8312a\pastewise_logo_1778267957619.png" width="150" alt="PasteWise Logo">
+</p>
+
 # 🧠 PasteWise: AI-Powered Code Paste Interceptor
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Gemini](https://img.shields.io/badge/AI-Google%20Gemini-blue)](https://aistudio.google.com/)
 [![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97-Hugging%20Face-orange)](https://huggingface.co/)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688)](https://fastapi.tiangolo.com/)
+[![Chrome Extension](https://img.shields.io/badge/Extension-Manifest%20V3-blueviolet)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 
-**PasteWise** is an intelligent Chrome extension that intercepts code pastes from GitHub, LeetCode, Replit, and other coding platforms. It analyzes the code with cutting-edge AI and provides explanations *before* you paste, helping you learn instead of just copying.
+**PasteWise** is a next-generation Chrome extension designed to transform the way developers interact with copied code. Instead of mindless pasting, PasteWise intercepts code transfers on major platforms, analyzes them with state-of-the-art AI, and provides instant, meaningful insights to help you learn and verify *before* the code hits your editor.
 
 ---
 
-## ✨ Features
+## ✨ Features that Empower Developers
 
-- 🎯 **Smart Interception** - Automatically detects code pastes in online editors.
-- 🤖 **Dual-AI Architecture** - Choose between **Google Gemini 1.5** (Flash/Pro) and **Hugging Face** models.
-- 🛡️ **Smart Failover** - Automatically switches to Gemini if the primary provider is unreachable.
-- 🔍 **Deep Dive Mode** - Line-by-line annotations for complex snippets.
-- 📊 **Learning Dashboard** - Track your streaks, concept coverage, and history.
-- ⚡ **Lightning Fast** - Intelligent caching ensures you never analyze the same code twice.
-- 🌐 **Wide Support** - Works on GitHub, LeetCode, Replit, CodePen, and more.
+*   🎯 **Intelligent Interception** - Seamlessly detects code pastes in online editors across 15+ supported platforms.
+*   🤖 **Dual-AI Intelligence** - Leverage the power of **Google Gemini 1.5** (Flash/Pro) or **Hugging Face** models (Mistral, Llama, etc.).
+*   🛡️ **Resilient Architecture** - Built-in **Auto-Failover** ensures that if one AI provider is down, the other takes over instantly.
+*   🔍 **Deep Dive Mode** - Go beyond summaries with line-by-line interactive annotations for complex logic.
+*   📊 **Learning Dashboard** - Track your growth with detailed statistics, concept coverage maps, and daily streaks.
+*   ⚡ **Lightning Performance** - Advanced SHA-256 caching ensures instant responses for recurring code snippets.
+*   🔐 **Privacy First** - Local history and stats tracking that you control.
+
+---
+
+## 🏗️ How It Works
+
+1.  **Intercept**: The extension monitors clipboard events on sites like LeetCode or GitHub.
+2.  **Analyze**: Code is sent to the local FastAPI backend.
+3.  **Process**: The backend identifies the language, tags concepts, and queries the configured AI provider.
+4.  **Insight**: A non-intrusive popup appears, giving you the "What", "How", and "Why" of the code.
+5.  **Growth**: Your interaction is recorded (privately) to build your learning profile.
+
+---
+
+## 🛠️ Tech Stack
+
+### Backend (Python/FastAPI)
+- **FastAPI**: High-performance web framework for the API layer.
+- **SQLAlchemy/SQLite**: Robust data persistence for stats and history.
+- **Google Generative AI**: Integration with the Gemini 1.5 family.
+- **Hugging Face API**: Support for open-source model inference.
+- **Pygments**: Local code analysis and language detection.
+
+### Frontend (Chrome Extension)
+- **Manifest V3**: Modern extension architecture for security and performance.
+- **Vanilla JS/CSS**: Sleek, dependency-free UI with glassmorphism design.
+- **Chart.js**: (Optional) For future data visualizations in the dashboard.
 
 ---
 
 ## 🚀 Quick Start
 
-Ready to level up your coding workflow? 
+Ready to stop pasting and start learning?
 
-### 👉 [Read the Full Setup Guide (Detailed Steps)](SETUP_GUIDE.md)
+1.  **Setup the Backend**:
+    -   `pip install -r backend/requirements.txt`
+    -   Configure your `.env` with your Gemini/HF keys.
+    -   Run `uvicorn backend.main:app --reload`
+2.  **Install the Extension**:
+    -   Load the `extension/` folder via `chrome://extensions/` in Developer Mode.
 
----
-
-## 🛠️ Configuration & Customization
-
-PasteWise is highly configurable. You can adjust:
-- **AI Provider**: Toggle between Google Gemini and Hugging Face in the options.
-- **AI Model**: Use `gemini-1.5-flash` for speed or specialized models from Hugging Face.
-- **Privacy Mode**: Toggle history and statistics tracking.
-- **Cache Settings**: Enable caching to save API tokens and speed up recurring snippets.
+### 👉 [Read the Full Setup Guide (Step-by-Step)](SETUP_GUIDE.md)
 
 ---
 
-## 📂 Project Structure
+## 🌐 Supported Platforms
 
-```bash
-pastewise/
-├── backend/                 # Python FastAPI backend
-│   ├── ai_client.py         # Unified AI provider interface
-│   ├── gemini_client.py     # Google Gemini integration
-│   ├── huggingface_client.py# Hugging Face integration
-│   ├── main.py              # FastAPI application logic
-│   └── database.py          # SQLite persistence
-├── extension/               # Chrome extension source
-├── icons/                   # High-res design assets
-├── README.md                # Project overview
-└── SETUP_GUIDE.md           # Step-by-step installation guide
-```
+PasteWise is optimized for:
+- 🐙 **GitHub**
+- 💻 **LeetCode**
+- 🌀 **Replit**
+- 🎨 **CodePen**
+- 📦 **CodeSandbox**
+- 🚀 **StackBlitz**
+- 🏆 **Codeforces & AtCoder**
+- 🧪 **Kaggle & Google Colab**
+- ...and many more!
 
 ---
 
 ## ✅ Recent Improvements
 
-- 🚀 **Hugging Face Integration**: Added support for Hugging Face Inference API as a secondary/alternative provider.
-- 🛡️ **Auto-Failover System**: Implemented automatic fallback to Gemini to ensure zero downtime during analysis.
-- 🔐 **Security Hardening**: Scrubbed all legacy secrets from version control and implemented robust `.env` management.
-- 🛠️ **Enhanced Gitignore**: Cleaned up the repository by excluding `venv/` and environment files.
-- 📊 **Better Visualization**: Improved the dashboard's concept coverage tracking.
+- 🔄 **Unified AI Interface**: Seamlessly switch between Gemini and Hugging Face.
+- 📉 **Concept Heatmaps**: Visualized learning progress in the dashboard.
+- ⚡ **Optimized Caching**: Reduced latency for common boilerplate code.
+- 🛡️ **Health Probes**: Real-time monitoring of AI provider availability.
 
 ---
 
-## License
+## 📜 License
 
-MIT
+Distributed under the MIT License. See `LICENSE` for more information.
 
-## Support
+---
 
-For issues and feature requests, check the logs:
-- Backend: Terminal where you ran `uvicorn`
-- Frontend: Chrome DevTools Console (`F12` → Console)
+<p align="center">
+  Built with ❤️ for the developer community.
+</p>
