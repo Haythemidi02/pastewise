@@ -22,6 +22,6 @@ for size in [16, 32, 48, 128]:
     draw.text((x, y), "P", fill=(255, 255, 255, 255))
 
     img.save(f"extension/icons/icon{size}.png")
-    print(f"✓ icon{size}.png created")
+    print(f"Success: icon{size}.png created")
 
 print("\nAll icons ready in extension/icons/")
