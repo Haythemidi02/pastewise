@@ -23,7 +23,7 @@ const DEFAULTS = {
   port:        8000,
   provider:    "gemini",
   apiKey:      "",
-  model:       "gemini-2.5-flash",
+  model:       "gemini-2.0-flash",
   maxTokens:   512,
   enabled:     true,
   shortSnips:  true,
@@ -37,15 +37,14 @@ const DEFAULTS = {
 
 const PROVIDER_MODELS = {
   gemini: [
-    { value: "gemini-2.5-flash", label: "gemini-2.5-flash (recommended)" },
+    { value: "gemini-2.0-flash", label: "gemini-2.0-flash (recommended)" },
+    { value: "gemini-2.5-flash", label: "gemini-2.5-flash" },
     { value: "gemini-2.5-pro", label: "gemini-2.5-pro (slower, smarter)" },
-    { value: "gemini-2.0-flash", label: "gemini-2.0-flash (latest)" },
     { value: "gemini-2.0-flash-lite-001", label: "gemini-2.0-flash-lite (higher rate limit)" },
   ],
   hf: [
-    { value: "HuggingFaceH4/zephyr-7b-beta", label: "HuggingFaceH4/zephyr-7b-beta" },
-    { value: "mistralai/Mistral-7B-Instruct-v0.2", label: "mistralai/Mistral-7B-Instruct-v0.2" },
-    { value: "google/flan-t5-large", label: "google/flan-t5-large" },
+    { value: "meta-llama/Llama-3.2-1B-Instruct", label: "Llama 3.2 1B (fast, reliable)" },
+    { value: "meta-llama/Llama-3.2-3B-Instruct", label: "Llama 3.2 3B (smarter)" },
   ],
 };
 

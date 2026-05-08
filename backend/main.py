@@ -237,9 +237,9 @@ async def explain(req: ExplainRequest):
 
     # ── Cache the result ───────────────────────────────────────────────────
     is_fallback = False
-    if req.mode == "quick" and result.summary.startswith("AI "):
+    if req.mode == "quick" and result.summary and result.summary.startswith("AI "):
         is_fallback = True
-    elif req.mode == "deep" and result.lines and result.lines[0].comment.startswith("AI "):
+    elif req.mode == "deep" and result.lines and result.lines[0].comment and result.lines[0].comment.startswith("AI "):
         is_fallback = True
 
     if runtime_config["cache"] and not is_fallback:

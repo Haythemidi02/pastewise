@@ -16,7 +16,7 @@ log = logging.getLogger("pastewise.hf")
 
 _config: dict[str, Any] = {
     "api_key": os.getenv("HF_API_KEY", ""),
-    "model": os.getenv("HF_MODEL", "HuggingFaceH4/zephyr-7b-beta"),
+    "model": os.getenv("HF_MODEL", "meta-llama/Llama-3.2-1B-Instruct"),
     "max_tokens": int(os.getenv("HF_MAX_TOKENS", os.getenv("GEMINI_MAX_TOKENS", "512"))),
 }
 
@@ -74,6 +74,61 @@ def _extract_json(raw: str) -> dict[str, Any]:
     except json.JSONDecodeError:
         pass
 
+    # Handle multiple separate JSON objects (model outputs lines one by one)
+    # Pattern: {"lines": [...]} {"lines": [...]} -> combine into one
+    if text.count('{"lines":') > 1:
+        all_lines = []
+        # Find all line entries
+        for match in re.finditer(r'\{"code":\s*"([^"]*)",\s*"comment":\s*"([^"]*)"\}', text):
+            code, comment = match.groups()
+            all_lines.append({"code": code, "comment": comment})
+
+        if all_lines:
+            return {"lines": all_lines}
+
+    # Fix duplicated keys issue (model repeating itself)
+    # Keep only the first occurrence of each key
+    lines_match = re.search(r'"lines"\s*:\s*\[', text, re.IGNORECASE)
+    if lines_match:
+        # Find just the first lines array
+        start = lines_match.start()
+        bracket_count = 0
+        in_string = False
+        escape_next = False
+        end = start
+
+        for i, char in enumerate(text[start:]):
+            if escape_next:
+                escape_next = False
+                continue
+            if char == '\\':
+                escape_next = True
+                continue
+            if char == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+
+            if char == '[':
+                bracket_count += 1
+            elif char == ']':
+                bracket_count -= 1
+                if bracket_count == 0:
+                    end = start + i + 1
+                    break
+
+        # Extract just the first lines array
+        first_lines = text[start:end]
+        text = '{"lines":' + first_lines + '}'
+
+        try:
+            parsed = json.loads(text)
+            if "lines" in parsed and isinstance(parsed["lines"], list):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if match:
         try:
@@ -81,23 +136,37 @@ def _extract_json(raw: str) -> dict[str, Any]:
         except json.JSONDecodeError:
             pass
 
+    # Fix common LLM JSON issues: "0-100" -> a valid number
+    text = re.sub(r'"coverage_score"\s*:\s*"0-100"', '"coverage_score": 50', text, flags=re.IGNORECASE)
+    text = re.sub(r'"coverage_score"\s*:\s*(\d+)-(\d+)', r'"coverage_score": \1', text)
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Try extracting just the summary
     summary_match = re.search(r'"summary"\s*:\s*"([^"\r\n}]*)', text, re.IGNORECASE)
     if summary_match:
         partial = summary_match.group(1).strip()
         if partial:
-            return {"summary": partial + "...", "tags": [], "coverage_score": 0}
+            # Try to extract tags too
+            tags_match = re.findall(r'"tags"\s*:\s*\[(.*?)\]', text, re.IGNORECASE)
+            tags = []
+            if tags_match:
+                tags = [t.strip().strip('"') for t in tags_match[0].split(",") if t.strip().strip('"')]
+            return {"summary": partial, "tags": tags[:6], "coverage_score": 50}
 
     raise ValueError("Could not extract valid JSON from model response.")
 
 
 def _quick_prompt(code: str, language: str) -> str:
-    return f"""Return ONLY valid JSON (no markdown):
-{{"summary":"...", "tags":["..."], "coverage_score":0}}
+    return f"""You are a code tutor. Respond with ONLY valid JSON (no markdown).
 
-Rules:
-- summary: 2-3 concise sentences in plain English.
-- tags: 3-6 short concept tags.
-- coverage_score: integer 0-100.
+JSON format required:
+{{"summary": "2-3 sentences describing what this code does", "tags": ["tag1", "tag2"], "coverage_score": 0-100}}
+
+Provide 3-6 tags from: variable, function, class, loop, conditional, async, api call, error handling, import, algorithm
 
 Language: {language}
 Code:
@@ -106,13 +175,10 @@ Code:
 
 
 def _deep_prompt(code: str, language: str) -> str:
-    return f"""Return ONLY valid JSON:
-{{"lines":[{{"code":"...", "comment":"..."}}]}}
+    return f"""You are a code tutor. Respond with ONLY valid JSON (no markdown).
 
-Rules:
-- One object per source line, in order.
-- Keep comments concise and clear.
-- For blank lines, keep code/comment empty strings.
+For each line of code below, provide the exact line and a brief comment.
+Format: {{"lines": [{{"code": "exact line", "comment": "what it does"}}]}}
 
 Language: {language}
 Code:
@@ -255,8 +321,8 @@ async def deep_dive_code_hf(code: str, language: str = "unknown") -> dict[str, A
         for entry in lines:
             if isinstance(entry, dict):
                 cleaned.append({
-                    "code": str(entry.get("code", "")),
-                    "comment": str(entry.get("comment", "")),
+                    "code": str(entry.get("code") or ""),
+                    "comment": str(entry.get("comment") or ""),
                 })
         if not cleaned:
             raise RuntimeError("HF deep response had no valid line annotations.")

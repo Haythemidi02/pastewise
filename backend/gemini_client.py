@@ -27,7 +27,7 @@ log = logging.getLogger("pastewise.gemini")
 # Mutable config — updated at runtime via /config without restart
 _config: dict = {
     "api_key":    os.getenv("GEMINI_API_KEY", ""),
-    "model":      os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+    "model":      os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
     "max_tokens": int(os.getenv("GEMINI_MAX_TOKENS", "512")),
 }
 _last_env_snapshot: tuple[str, str, str] | None = None
@@ -157,35 +157,40 @@ def _get_model() -> genai.GenerativeModel:
 # ──────────────────────────────────────────────────────────────────────────────
 
 _QUICK_PROMPT = """\
-You are a concise code tutor helping a developer understand code they copied.
+You are an expert code tutor. Your goal is to help developers understand code they just copied.
 
-Analyse the {language} code below and respond with ONLY a valid JSON object — \
-no markdown fences, no extra text before or after.
+CRITICAL RULES:
+1. Only describe what you can see in the code - never guess or hallucinate
+2. If something is unclear, say "unclear" in your summary
+3. Use plain English, avoid jargon
+4. Be precise: describe exact behavior, not approximations
+
+Analyze the {language} code below and respond with ONLY a valid JSON object (no markdown fences).
 
 JSON schema (all fields required):
 {{
-  "summary": "<3 sentences max — plain English, no jargon>",
-  "tags": ["<concept>", "<concept>"],
-  "coverage_score": <integer 0-100>
+  "summary": "<2-3 sentences describing exactly what this code does>",
+  "tags": ["<concept from list below>"],
+  "coverage_score": <0-100>
 }}
 
-Note: Provide 3-6 tags from the list below. The coverage_score should reflect how well the code covers real concepts.
+Use ONLY these tags (pick 3-6 that exactly match the code):
+- variable, function, class, object, array, string, number, boolean
+- loop (for/while), conditional (if/else), switch/match
+- async/await, promise, callback, event listener
+- api call, http request, fetch, axios
+- error handling, try/catch, exception
+- import/export, module, package
+- recursion, algorithm, data structure
+- dom manipulation, state management
+- sql query, database, crud
+- testing, mock, assertion
 
-Concept tag examples (use these exact strings when applicable):
-closure, recursion, async/await, promise, callback, higher-order function,
-generator, iterator, decorator, context manager, list comprehension,
-memoization, dynamic programming, binary search, sorting, linked list,
-tree traversal, graph traversal, regex, error handling, class, inheritance,
-polymorphism, interface, type annotation, immutability, side effect,
-pure function, currying, event loop, concurrency, threading, mutex,
-api call, http request, dom manipulation, state management, dependency injection,
-sql query, join, aggregation, filtering, database schema, transaction
-
-coverage_score guide:
-  0–30   trivial snippet (single expression, variable assignment)
-  31–60  moderate — uses 1–2 meaningful concepts
-  61–85  solid — multiple real concepts working together
-  86–100 dense — advanced patterns, worth studying carefully
+Coverage score guide:
+  0-30:   trivial (1-5 lines, simple assignment/return)
+  31-60:  basic (has logic but common patterns)
+  61-85:  good (multiple concepts, real algorithms)
+  86-100: advanced (complex patterns worth studying)
 
 Code:
 {code}
@@ -207,25 +212,25 @@ Code:
 """
 
 _DEEP_PROMPT = """\
-You are a patient code tutor doing a line-by-line walkthrough.
+You are an expert code tutor doing a line-by-line walkthrough.
 
-Annotate EVERY line of the {language} code below.
-For blank lines or closing brackets, use an empty string for the comment.
-Respond with ONLY a valid JSON object — no markdown fences, no extra text.
+CRITICAL RULES:
+1. Describe ONLY what you can see - never assume or guess
+2. If a line is unclear, say "unclear" as the comment
+3. Keep comments 3-10 words, plain English
+4. Preserve exact line order from the code
+
+Annotate every line of the {language} code below.
+For blank lines or closing brackets/braces, use empty strings.
+Respond with ONLY valid JSON (no markdown fences).
 
 JSON schema:
 {{
   "lines": [
-    {{"code": "<exact line>", "comment": "<plain English — what this line does>"}},
+    {{"code": "<exact line from code>", "comment": "<what this line does>"}},
     ...
   ]
 }}
-
-Rules:
-- One object per line, preserving original line order.
-- Keep comments under 12 words.
-- Use plain English — no jargon, no restating the syntax.
-- For blank lines: {{"code": "", "comment": ""}}
 
 Code:
 {code}
@@ -286,15 +291,14 @@ def _extract_json(raw: str) -> dict[str, Any]:
 
 async def _call_with_retry(
     prompt: str,
-    retries: int = 3,
-    base_delay: float = 3.0,
+    retries: int = 5,
+    base_delay: float = 2.0,
 ) -> str:
     """
     Calls the Gemini API asynchronously with exponential backoff.
 
-    Gemini's free tier has rate limits — a 429 or transient 5xx is common
-    on the first call after a cold start. Three retries with 1.5s / 3s / 6s
-    delays handles this gracefully without hammering the API.
+    Gemini's free tier has rate limits — a 429 or transient 5xx is common.
+    Five retries with 2s / 4s / 8s / 16s / 32s delays handles this gracefully.
     """
     model = _get_model()
 
@@ -319,10 +323,25 @@ async def _call_with_retry(
             return text
 
         except Exception as exc:
-            log.warning(f"Gemini attempt {attempt}/{retries} failed: {exc}")
+            error_str = str(exc).lower()
+
+            # Check for rate limit - longer wait needed
+            if "429" in error_str or "rate limit" in error_str or "quota" in error_str:
+                # Extract retry delay from error message if available
+                import re
+                match = re.search(r"retry (\d+)", error_str)
+                if match:
+                    delay = min(60, int(match.group(1)))
+                else:
+                    delay = base_delay * (2 ** (attempt - 1))
+                log.warning(f"Rate limited, waiting {delay:.1f}s before retry...")
+                await asyncio.sleep(delay)
+                continue
+
+            # For other errors, use standard backoff
             if attempt < retries:
-                delay = base_delay * (2 ** (attempt - 1))   # 1.5s, 3s, 6s
-                log.info(f"Retrying in {delay:.1f}s…")
+                delay = base_delay * (2 ** (attempt - 1))
+                log.warning(f"Gemini attempt {attempt}/{retries} failed: {exc}, retrying in {delay:.1f}s")
                 await asyncio.sleep(delay)
             else:
                 raise RuntimeError(

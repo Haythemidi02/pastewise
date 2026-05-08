@@ -61,8 +61,8 @@ async def explain_code(code: str, language: str = "unknown") -> dict:
             return await explain_code_gemini(code, language)
 
         hf_result = await explain_code_hf(code, language)
-        summary = str(hf_result.get("summary", ""))
-        if "huggingface api http" in summary.lower() or "ai unavailable" in summary.lower():
+        summary = str(hf_result.get("summary") or "")
+        if summary and ("huggingface api http" in summary.lower() or "ai unavailable" in summary.lower()):
             _hf_last_error = summary[:220]
             _hf_backoff_until_ts = time.time() + 300  # 5 minutes backoff
             log.warning("HF failed; auto-fallback to Gemini for this request.")
@@ -82,9 +82,9 @@ async def deep_dive_code(code: str, language: str = "unknown") -> dict:
         lines = hf_result.get("lines", [])
         first_comment = ""
         if isinstance(lines, list) and lines and isinstance(lines[0], dict):
-            first_comment = str(lines[0].get("comment", ""))
+            first_comment = str(lines[0].get("comment") or "")
 
-        if "ai unavailable" in first_comment.lower() or "huggingface api http" in first_comment.lower():
+        if first_comment and ("ai unavailable" in first_comment.lower() or "huggingface api http" in first_comment.lower()):
             _hf_last_error = first_comment[:220]
             _hf_backoff_until_ts = time.time() + 300
             log.warning("HF deep failed; auto-fallback to Gemini for this request.")
