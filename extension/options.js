@@ -21,6 +21,7 @@ const SITES = [
 
 const DEFAULTS = {
   port:        8000,
+  provider:    "gemini",
   apiKey:      "",
   model:       "gemini-2.5-flash",
   maxTokens:   512,
@@ -32,6 +33,20 @@ const DEFAULTS = {
   cache:       true,
   history:     true,
   sites:       Object.fromEntries(SITES.map((s) => [s.host, true])),
+};
+
+const PROVIDER_MODELS = {
+  gemini: [
+    { value: "gemini-2.5-flash", label: "gemini-2.5-flash (recommended)" },
+    { value: "gemini-2.5-pro", label: "gemini-2.5-pro (slower, smarter)" },
+    { value: "gemini-2.0-flash", label: "gemini-2.0-flash (latest)" },
+    { value: "gemini-2.0-flash-lite-001", label: "gemini-2.0-flash-lite (higher rate limit)" },
+  ],
+  hf: [
+    { value: "HuggingFaceH4/zephyr-7b-beta", label: "HuggingFaceH4/zephyr-7b-beta" },
+    { value: "mistralai/Mistral-7B-Instruct-v0.2", label: "mistralai/Mistral-7B-Instruct-v0.2" },
+    { value: "google/flan-t5-large", label: "google/flan-t5-large" },
+  ],
 };
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -46,6 +61,7 @@ const $ = (id) => document.getElementById(id);
 
 const inputs = {
   port:       $("inp-port"),
+  provider:   $("inp-provider"),
   apiKey:     $("inp-apikey"),
   model:      $("inp-model"),
   maxTokens:  $("inp-max-tokens"),
@@ -123,6 +139,7 @@ async function pushToBackend(settings) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        provider:   settings.provider,
         api_key:    settings.apiKey,
         model:      settings.model,
         max_tokens: settings.maxTokens,
@@ -141,8 +158,10 @@ async function pushToBackend(settings) {
 
 function populateForm() {
   inputs.port.value          = current.port;
+  inputs.provider.value      = current.provider || "gemini";
+  renderModelOptions(inputs.provider.value, current.model);
+  updateProviderHints(inputs.provider.value);
   inputs.apiKey.value        = current.apiKey;
-  inputs.model.value         = current.model;
   inputs.maxTokens.value     = current.maxTokens;
   inputs.enabled.checked     = current.enabled;
   inputs.shortSnips.checked  = current.shortSnips;
@@ -163,6 +182,7 @@ function populateForm() {
 
 function collectForm() {
   current.port       = parseInt(inputs.port.value, 10) || 8000;
+  current.provider   = inputs.provider.value || "gemini";
   current.apiKey     = inputs.apiKey.value.trim();
   current.model      = inputs.model.value;
   current.maxTokens  = parseInt(inputs.maxTokens.value, 10);
@@ -187,9 +207,12 @@ function collectForm() {
 function validate() {
   let ok = true;
 
-  // API key: must start with "AIza" if provided
+  // API key validation depends on selected provider
   const keyErr = $("err-apikey");
-  if (current.apiKey && !current.apiKey.startsWith("AIza")) {
+  const provider = current.provider || "gemini";
+  const badGemini = provider === "gemini" && current.apiKey && !current.apiKey.startsWith("AIza");
+  const badHf = provider === "hf" && current.apiKey && !current.apiKey.startsWith("hf_");
+  if (badGemini || badHf) {
     keyErr.classList.add("visible");
     ok = false;
   } else {
@@ -225,6 +248,11 @@ function bindEvents() {
 
   // API key eye toggle
   $("btn-eye").addEventListener("click", toggleKeyVisibility);
+  inputs.provider.addEventListener("change", () => {
+    renderModelOptions(inputs.provider.value, inputs.model.value);
+    updateProviderHints(inputs.provider.value);
+    markDirty();
+  });
 
   // Any input change → mark dirty
   Object.values(inputs).forEach((el) => {
@@ -345,7 +373,24 @@ async function confirmReset() {
 function renderAbout() {
   const port  = inputs.port.value || 8000;
   $("about-backend").textContent = `localhost:${port}`;
-  $("about-model").textContent   = inputs.model.value;
+  $("about-model").textContent   = `${inputs.provider.value}:${inputs.model.value}`;
+}
+
+function renderModelOptions(provider, preferredModel) {
+  const options = PROVIDER_MODELS[provider] || PROVIDER_MODELS.gemini;
+  inputs.model.innerHTML = options
+    .map((opt) => `<option value="${opt.value}">${opt.label}</option>`)
+    .join("");
+  const hasPreferred = options.some((opt) => opt.value === preferredModel);
+  inputs.model.value = hasPreferred ? preferredModel : options[0].value;
+}
+
+function updateProviderHints(provider) {
+  if (provider === "hf") {
+    inputs.apiKey.placeholder = "hf_...";
+  } else {
+    inputs.apiKey.placeholder = "AIza...";
+  }
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────

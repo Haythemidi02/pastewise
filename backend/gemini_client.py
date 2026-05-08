@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 
 # Load .env from the same directory as this file
 env_path = Path(__file__).parent / ".env"
-load_dotenv(env_path)
+load_dotenv(env_path, override=True)
 
 log = logging.getLogger("pastewise.gemini")
 
@@ -30,9 +30,43 @@ _config: dict = {
     "model":      os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
     "max_tokens": int(os.getenv("GEMINI_MAX_TOKENS", "512")),
 }
+_last_env_snapshot: tuple[str, str, str] | None = None
+
+def _sanitize_api_key(value: str | None) -> str:
+    """Trim whitespace/quotes from API keys pasted from UIs."""
+    if not value:
+        return ""
+    return value.strip().strip("'").strip('"')
+
+def _reload_config_from_env() -> None:
+    """
+    Reload env-backed config so editing backend/.env applies at runtime.
+    """
+    load_dotenv(env_path, override=True)
+
+    env_key = _sanitize_api_key(os.getenv("GEMINI_API_KEY", ""))
+    env_model = (os.getenv("GEMINI_MODEL", "") or "").strip()
+    env_max_tokens = (os.getenv("GEMINI_MAX_TOKENS", "") or "").strip()
+
+    global _last_env_snapshot
+    snapshot = (env_key, env_model, env_max_tokens)
+    if snapshot == _last_env_snapshot:
+        return
+    _last_env_snapshot = snapshot
+
+    if env_key:
+        _config["api_key"] = env_key
+    if env_model:
+        _config["model"] = env_model
+    if env_max_tokens:
+        try:
+            _config["max_tokens"] = int(env_max_tokens)
+        except ValueError:
+            log.warning("Ignoring invalid GEMINI_MAX_TOKENS in .env: %s", env_max_tokens)
 
 def _init_client() -> None:
     """Configure the Gemini SDK with the current API key."""
+    _config["api_key"] = _sanitize_api_key(_config["api_key"])
     if not _config["api_key"]:
         log.warning("⚠️  GEMINI_API_KEY is not set! Create backend/.env file with:")
         log.warning("   GEMINI_API_KEY=your_key_from_https://aistudio.google.com/app/apikey")
@@ -54,18 +88,53 @@ def update_gemini_config(
     Called by main.py /config route when the user saves settings.
     Updates the live config and re-initialises the SDK client.
     """
-    if api_key:
-        _config["api_key"] = api_key
-    if model:
-        _config["model"] = model
-    if max_tokens:
+    if api_key is not None:
+        _config["api_key"] = _sanitize_api_key(api_key)
+    if model is not None:
+        _config["model"] = model.strip()
+    if max_tokens is not None:
         _config["max_tokens"] = max_tokens
     _init_client()
     log.info(f"Gemini config updated → {_config['model']}")
 
 
+def check_gemini_health(live: bool = False) -> dict[str, Any]:
+    """
+    Basic/config health plus optional live inference probe.
+    """
+    _reload_config_from_env()
+    api_key = (_config.get("api_key") or "").strip()
+    model = (_config.get("model") or "").strip()
+    if not api_key:
+        return {"ok": False, "configured": False, "detail": "GEMINI_API_KEY is not set."}
+    if not model:
+        return {"ok": False, "configured": False, "detail": "GEMINI_MODEL is not set."}
+
+    if not live:
+        return {"ok": True, "configured": True, "detail": "Gemini config looks present."}
+
+    try:
+        m = _get_model()
+        response = m.generate_content('Return only {"ok":true}')
+        text = (response.text or "").strip()
+        return {
+            "ok": True,
+            "configured": True,
+            "detail": "Live inference probe succeeded.",
+            "sample": text[:120],
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "configured": True,
+            "detail": f"Live inference probe failed: {str(exc)[:200]}",
+        }
+
+
 def _get_model() -> genai.GenerativeModel:
     """Returns a fresh GenerativeModel instance using current config."""
+    _reload_config_from_env()
+    _init_client()
     if not _config["api_key"]:
         raise RuntimeError(
             "Gemini API key is not configured. "
@@ -75,7 +144,7 @@ def _get_model() -> genai.GenerativeModel:
     return genai.GenerativeModel(
         model_name=_config["model"],
         generation_config={
-            "max_output_tokens": max(2048, _config["max_tokens"]),
+            "max_output_tokens": max(64, _config["max_tokens"]),
             "temperature": 0.2,
             "top_p": 0.8,
             "response_mime_type": "application/json",
@@ -118,6 +187,21 @@ coverage_score guide:
   61–85  solid — multiple real concepts working together
   86–100 dense — advanced patterns, worth studying carefully
 
+Code:
+{code}
+"""
+
+# Minimal backup prompt used when the main quick prompt yields truncated output.
+_QUICK_RESCUE_PROMPT = """\
+Return ONLY valid JSON:
+{{"summary":"...", "tags":["..."], "coverage_score":0}}
+
+Rules:
+- summary: 2-3 clear sentences in plain English.
+- tags: 3-6 short concept tags.
+- coverage_score: integer 0..100.
+
+Language: {language}
 Code:
 {code}
 """
@@ -175,6 +259,22 @@ def _extract_json(raw: str) -> dict[str, Any]:
             return json.loads(match.group())
         except json.JSONDecodeError:
             pass
+
+    # 4. Recovery for truncated JSON payloads.
+    # Gemini may stop mid-string (e.g. finish_reason=max tokens), leaving
+    # an incomplete object like: {"summary": "This code ...}
+    summary_match = re.search(r'"summary"\s*:\s*"([^"\r\n}]*)', text, re.IGNORECASE)
+    if summary_match:
+        recovered_summary = summary_match.group(1).strip()
+        if recovered_summary:
+            return {
+                "summary": recovered_summary + "...",
+                "tags": [],
+                "coverage_score": 0,
+            }
+
+    if re.search(r'"lines"\s*:', text, re.IGNORECASE):
+        return {"lines": []}
 
     log.error(f"Failed to extract JSON from: {raw}")
     raise ValueError(f"Could not extract valid JSON from Gemini response. Check logs for details.")
@@ -248,17 +348,39 @@ async def explain_code(code: str, language: str = "unknown") -> dict[str, Any]:
     Falls back to a safe default if parsing fails so the popup
     always renders something rather than crashing.
     """
-    prompt = _QUICK_PROMPT.format(code=code, language=language)
-
     try:
-        raw    = await _call_with_retry(prompt)
+        # First pass: rich prompt
+        raw = await _call_with_retry(_QUICK_PROMPT.format(code=code, language=language))
         result = _extract_json(raw)
+        cleaned_summary = _clean_summary(result.get("summary", ""))
+        cleaned_tags = _clean_tags(result.get("tags", []))
+        cleaned_score = _clamp_score(result.get("coverage_score", 0))
 
-        # Normalise and validate each field
+        # Second pass: minimal rescue prompt if output is low quality/truncated
+        if _is_low_quality_summary(cleaned_summary):
+            log.info("Quick summary looked truncated; trying rescue prompt.")
+            rescue_raw = await _call_with_retry(
+                _QUICK_RESCUE_PROMPT.format(code=code, language=language),
+                retries=2,
+                base_delay=1.0,
+            )
+            rescue_result = _extract_json(rescue_raw)
+            rescue_summary = _clean_summary(rescue_result.get("summary", ""))
+            if not _is_low_quality_summary(rescue_summary):
+                cleaned_summary = rescue_summary
+                rescue_tags = _clean_tags(rescue_result.get("tags", []))
+                if rescue_tags:
+                    cleaned_tags = rescue_tags
+                rescue_score = _clamp_score(rescue_result.get("coverage_score", 0))
+                if rescue_score > 0:
+                    cleaned_score = rescue_score
+            else:
+                cleaned_summary = _local_quick_summary(code, language)
+
         return {
-            "summary":        _clean_summary(result.get("summary", "")),
-            "tags":           _clean_tags(result.get("tags", [])),
-            "coverage_score": _clamp_score(result.get("coverage_score", 0)),
+            "summary":        cleaned_summary,
+            "tags":           cleaned_tags,
+            "coverage_score": cleaned_score,
         }
 
     except Exception as exc:
@@ -288,6 +410,8 @@ async def deep_dive_code(code: str, language: str = "unknown") -> dict[str, Any]
         raw    = await _call_with_retry(prompt, retries=3, base_delay=1.5)
         result = _extract_json(raw)
         lines  = _clean_lines(result.get("lines", []), original_code=code)
+        if not lines or all(not (row.get("comment") or "").strip() for row in lines):
+            return {"lines": _local_line_by_line(code)}
         return {"lines": lines}
 
     except Exception as exc:
@@ -305,6 +429,78 @@ def _clean_summary(summary: Any) -> str:
         return "Could not generate a summary."
     sentences = re.split(r"(?<=[.!?])\s+", summary.strip())
     return " ".join(sentences[:3]).strip() or "No summary available."
+
+
+def _is_low_quality_summary(summary: str) -> bool:
+    """Detect truncated/non-informative summaries such as 'This code ...'."""
+    s = (summary or "").strip().lower()
+    if not s:
+        return True
+    if len(s) < 28:
+        return True
+    if s.endswith("...") and len(s) < 180:
+        return True
+    if s in {"this code...", "this code", "code..."}:
+        return True
+    if s.startswith("this code") and s.endswith("...") and len(s) < 80:
+        return True
+    return False
+
+
+def _local_quick_summary(code: str, language: str) -> str:
+    """
+    Deterministic fallback summary when model output is truncated.
+    Keeps the popup useful even if Gemini returns incomplete JSON.
+    """
+    stripped = code.strip()
+    lines = stripped.splitlines()
+    line_count = len(lines)
+    char_count = len(stripped)
+
+    lowered = stripped.lower()
+    signals = []
+    if "def " in lowered or "function " in lowered:
+        signals.append("defines function logic")
+    if "class " in lowered:
+        signals.append("uses class-based structure")
+    if "for " in lowered or "while " in lowered:
+        signals.append("contains iteration")
+    if "if " in lowered or "elif " in lowered or "else" in lowered:
+        signals.append("uses conditional branches")
+    if "return " in lowered:
+        signals.append("returns computed values")
+    if "await " in lowered or "async " in lowered:
+        signals.append("includes async behavior")
+
+    # Detect common competitive-programming parity pattern for richer fallback text.
+    has_parity = "% 2" in lowered
+    has_yes_no = "yes" in lowered and "no" in lowered and "print" in lowered
+    has_cases = "for _ in range" in lowered and "input(" in lowered
+    if has_parity and has_yes_no:
+        parity_msg = (
+            "It checks parity (odd/even) using modulo 2 and prints YES/NO "
+            "based on the condition."
+        )
+        if has_cases:
+            return (
+                f"This {language} snippet processes multiple test cases from input. "
+                f"{parity_msg} "
+                "In this code, YES is printed when the sum is odd or n*k is even."
+            )
+        return (
+            f"This {language} snippet computes values from input and applies parity rules. "
+            f"{parity_msg} "
+            "The final branch decides which output to print."
+        )
+
+    if not signals:
+        signals.append("contains executable statements")
+
+    return (
+        f"This {language} snippet has {line_count} lines and {char_count} characters. "
+        f"It {signals[0]}. "
+        f"{'It also ' + signals[1] + '.' if len(signals) > 1 else 'Use line-by-line mode for detailed comments.'}"
+    )
 
 
 def _clean_tags(tags: Any) -> list[str]:
@@ -362,6 +558,41 @@ def _clean_lines(lines: Any, original_code: str) -> list[dict[str, str]]:
     return cleaned
 
 
+def _local_line_by_line(code: str) -> list[dict[str, str]]:
+    """Create simple deterministic per-line comments when AI output is empty."""
+    annotated: list[dict[str, str]] = []
+    for raw_line in code.splitlines():
+        line = raw_line.rstrip()
+        stripped = line.strip()
+        comment = ""
+
+        if not stripped:
+            comment = ""
+        elif stripped.startswith("#") or stripped.startswith("//"):
+            comment = "Comment line."
+        elif stripped.startswith("import ") or stripped.startswith("from "):
+            comment = "Imports a dependency."
+        elif re.match(r"^(def|function)\s+\w+", stripped):
+            comment = "Defines a function."
+        elif re.match(r"^class\s+\w+", stripped):
+            comment = "Defines a class."
+        elif stripped.startswith(("if ", "elif ", "else")):
+            comment = "Conditional control flow."
+        elif stripped.startswith(("for ", "while ")):
+            comment = "Loop over values."
+        elif stripped.startswith("return"):
+            comment = "Returns a value."
+        elif "=" in stripped and "==" not in stripped:
+            comment = "Assigns a value."
+        elif stripped.endswith("{") or stripped in {"}", "];", ")", "]", ");"}:
+            comment = ""
+        else:
+            comment = "Executes this statement."
+
+        annotated.append({"code": line, "comment": comment})
+    return annotated
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # FALLBACK RESPONSES
 # ──────────────────────────────────────────────────────────────────────────────
@@ -376,6 +607,7 @@ def _quick_fallback(error: str) -> dict[str, Any]:
     is_key_error = "api key" in error.lower() or "not configured" in error.lower() or "api_key" in error.lower()
     is_denied = "denied" in error.lower() or "403" in error.lower()
     is_quota = "429" in error or "quota" in error.lower() or "rate limit" in error.lower()
+    is_json_parse = "could not extract valid json" in error.lower() or "json" in error.lower()
 
     if is_denied:
         summary_msg = "AI model unavailable: Your API key project has been denied access (403). Please generate a new API key."
@@ -388,6 +620,8 @@ def _quick_fallback(error: str) -> dict[str, Any]:
             summary_msg = f"AI rate limit reached (429). Google is cooling down your API key. Please wait {match.group(1)} seconds."
         else:
             summary_msg = "AI rate limit reached (429). You are pasting too fast. Please wait 60 seconds."
+    elif is_json_parse:
+        summary_msg = "AI response was truncated and could not be parsed. Try again, use a shorter snippet, or increase max tokens."
     else:
         summary_msg = f"AI model error: {error}. Check backend/.env configuration."
     

@@ -30,7 +30,13 @@ from models import (
     StatsResponse,
     RecentPastesResponse,
 )
-from gemini_client import explain_code, deep_dive_code, update_gemini_config
+from ai_client import (
+    explain_code,
+    deep_dive_code,
+    update_ai_config,
+    get_provider,
+    get_providers_health,
+)
 from language_detector import detect_language
 from concept_tagger import tag_concepts
 from cache import get_cached, set_cached, clear_cache
@@ -41,6 +47,23 @@ from stats import (
     load_recent_pastes,
     reset_stats,
 )
+
+
+def _is_bad_cached_result(mode: str, cached: dict) -> bool:
+    """Reject stale/partial cache entries produced by truncated model output."""
+    if mode == "quick":
+        summary = str(cached.get("summary", "")).strip().lower()
+        return (
+            not summary
+            or summary in {"this code...", "this code", "code..."}
+            or (summary.endswith("...") and len(summary) < 80)
+            or "snippet has" in summary  # deterministic local fallback summary
+        )
+
+    lines = cached.get("lines", [])
+    if not isinstance(lines, list) or not lines:
+        return True
+    return all(not str((row or {}).get("comment", "")).strip() for row in lines if isinstance(row, dict))
 
 # ─── Runtime config (overridable via /config without restart) ─────────────────
 
@@ -118,6 +141,19 @@ async def health():
     """
     return HealthResponse(status="ok", version="1.0.0")
 
+
+@app.get(
+    "/providers/health",
+    summary="Provider readiness and optional live probe",
+)
+async def providers_health(live: bool = False):
+    """
+    Returns per-provider status.
+    live=false: config-level checks only (fast)
+    live=true: performs a real model probe request (slower)
+    """
+    return get_providers_health(live=live)
+
 # ─── Explain ──────────────────────────────────────────────────────────────────
 
 @app.post(
@@ -141,12 +177,17 @@ async def explain(req: ExplainRequest):
     if req.mode not in ("quick", "deep"):
         raise HTTPException(status_code=400, detail="mode must be 'quick' or 'deep'.")
 
+    cache_mode = f"{get_provider()}:{req.mode}"
+
     # ── Cache check ────────────────────────────────────────────────────────
     if runtime_config["cache"]:
-        cached = get_cached(req.code, req.mode)
+        cached = get_cached(req.code, cache_mode)
         if cached:
-            log.info(f"Cache hit  [{req.mode}]  {len(req.code)} chars")
-            return cached
+            if _is_bad_cached_result(req.mode, cached):
+                log.info(f"Ignoring stale cache  [{req.mode}]  {len(req.code)} chars")
+            else:
+                log.info(f"Cache hit  [{req.mode}]  {len(req.code)} chars")
+                return cached
 
     # ── Language detection (runs locally, no API call) ─────────────────────
     language = detect_language(req.code)
@@ -202,7 +243,7 @@ async def explain(req: ExplainRequest):
         is_fallback = True
 
     if runtime_config["cache"] and not is_fallback:
-        set_cached(req.code, req.mode, result.model_dump())
+        set_cached(req.code, cache_mode, result.model_dump())
 
     return result
 
@@ -277,34 +318,42 @@ async def update_config(req: ConfigUpdateRequest):
     if req.history is not None:
         runtime_config["history"] = req.history
 
-    # Push model/key changes to the Gemini client
-    gemini_updated = False
-    if req.api_key or req.model or req.max_tokens:
+    # Push model/key/provider changes to AI client
+    ai_updated = False
+    if (
+        req.api_key is not None
+        or req.model is not None
+        or req.max_tokens is not None
+        or req.provider is not None
+    ):
         try:
-            update_gemini_config(
+            update_ai_config(
                 api_key    = req.api_key,
                 model      = req.model,
                 max_tokens = req.max_tokens,
+                provider   = req.provider,
             )
-            gemini_updated = True
+            ai_updated = True
         except Exception as exc:
-            log.warning(f"Gemini config update failed: {exc}")
+            log.warning(f"AI config update failed: {exc}")
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid Gemini config: {str(exc)}",
+                detail=f"Invalid AI config: {str(exc)}",
             )
 
     log.info(
         f"Config updated — cache={runtime_config['cache']}  "
         f"history={runtime_config['history']}  "
-        f"gemini_updated={gemini_updated}"
+        f"ai_updated={ai_updated}  "
+        f"provider={get_provider()}"
     )
 
     return {
         "ok":             True,
         "cache":          runtime_config["cache"],
         "history":        runtime_config["history"],
-        "gemini_updated": gemini_updated,
+        "ai_updated":     ai_updated,
+        "provider":       get_provider(),
     }
 
 # ─── Reset ────────────────────────────────────────────────────────────────────

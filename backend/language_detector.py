@@ -47,6 +47,10 @@ _HEURISTIC_RULES: list[tuple[str, list[str], int]] = [
         r"^\s*except\s+\w*.*:",          # except clause
         r"lambda\s+\w+.*:",              # lambda
         r"^\s*with\s+.*\s+as\s+",        # context manager
+        r"^\s*for\s+\w+\s+in\s+range\s*\(", # common Python loop
+        r"\binput\s*\(",                 # competitive-style input()
+        r"\bmap\s*\(",                   # map(...)
+        r"\blist\s*\(\s*map\s*\(",       # list(map(...))
         r"\bNone\b",                     # None literal
         r"\bTrue\b|\bFalse\b",           # bool literals
         r"f['\"].*\{",                   # f-string

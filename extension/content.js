@@ -56,22 +56,25 @@
 
     if (!isCodeEditor(target)) return;
 
-    // Grab clipboard text BEFORE we call preventDefault,
-    // because on some browsers readText() needs the original event trust.
-    let code = "";
-    try {
-      code = await navigator.clipboard.readText();
-    } catch {
-      // Fallback: read from the DataTransfer object attached to the event
-      code = event.clipboardData?.getData("text/plain") ?? "";
+    // Block native paste immediately so code is inserted only when the user
+    // explicitly clicks our "Paste" button.
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+
+    // Prefer synchronous clipboardData from the paste event itself.
+    // If unavailable, fall back to async clipboard API.
+    let code = event.clipboardData?.getData("text/plain") ?? "";
+    if (!code.trim()) {
+      try {
+        code = await navigator.clipboard.readText();
+      } catch {
+        code = "";
+      }
     }
 
-    // Nothing useful in clipboard — let the paste go through normally
+    // If clipboard is empty/unreadable, just dismiss interception.
     if (!code.trim()) return;
-
-    // Block the native paste while we show the popup
-    event.preventDefault();
-    event.stopPropagation();
 
     // Show loading state immediately so the user knows something is happening
     const popup = createPopup();
