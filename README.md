@@ -1,10 +1,5 @@
-<p align="center">
-  <img src="C:\Users\Haythem\.gemini\antigravity\brain\9ff541de-57b9-469e-a877-9dddbbb8312a\pastewise_logo_1778267957619.png" width="150" alt="PasteWise Logo">
-</p>
+# PasteWise: AI-Powered Code Paste Interceptor
 
-# 🧠 PasteWise: AI-Powered Code Paste Interceptor
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Gemini](https://img.shields.io/badge/AI-Google%20Gemini-blue)](https://aistudio.google.com/)
 [![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97-Hugging%20Face-orange)](https://huggingface.co/)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688)](https://fastapi.tiangolo.com/)
@@ -14,15 +9,15 @@
 
 ---
 
-## ✨ Features that Empower Developers
+##  Features that Empower Developers
 
-*   🎯 **Intelligent Interception** - Seamlessly detects code pastes in online editors across 15+ supported platforms.
-*   🤖 **Dual-AI Intelligence** - Leverage the power of **Google Gemini 1.5** (Flash/Pro) or **Hugging Face** models (Mistral, Llama, etc.).
-*   🛡️ **Resilient Architecture** - Built-in **Auto-Failover** ensures that if one AI provider is down, the other takes over instantly.
-*   🔍 **Deep Dive Mode** - Go beyond summaries with line-by-line interactive annotations for complex logic.
-*   📊 **Learning Dashboard** - Track your growth with detailed statistics, concept coverage maps, and daily streaks.
-*   ⚡ **Lightning Performance** - Advanced SHA-256 caching ensures instant responses for recurring code snippets.
-*   🔐 **Privacy First** - Local history and stats tracking that you control.
+*    **Intelligent Interception** - Seamlessly detects code pastes in online editors across 15+ supported platforms.
+*    **Dual-AI Intelligence** - Leverage the power of **Google Gemini 2.0** (Flash/Pro) or **Hugging Face** models (Mistral, Llama, etc.).
+*    **Resilient Architecture** - Built-in **Auto-Failover** ensures that if one AI provider is down, the other takes over instantly.
+*    **Deep Dive Mode** - Go beyond summaries with line-by-line interactive annotations for complex logic.
+*    **Learning Dashboard** - Track your growth with detailed statistics, concept coverage maps, and daily streaks.
+*    **Lightning Performance** - Advanced SHA-256 caching ensures instant responses for recurring code snippets.
+*    **Privacy First** - Local history and stats tracking that you control.
 
 ---
 
@@ -52,7 +47,7 @@
 
 ---
 
-## 🚀 Quick Start
+##  Quick Start
 
 Ready to stop pasting and start learning?
 
@@ -63,39 +58,33 @@ Ready to stop pasting and start learning?
 2.  **Install the Extension**:
     -   Load the `extension/` folder via `chrome://extensions/` in Developer Mode.
 
-### 👉 [Read the Full Setup Guide (Step-by-Step)](SETUP_GUIDE.md)
+###  [Read the Full Setup Guide (Step-by-Step)](SETUP_GUIDE.md)
 
 ---
 
-## 🌐 Supported Platforms
+##  Supported Platforms
 
 PasteWise is optimized for:
-- 🐙 **GitHub**
-- 💻 **LeetCode**
-- 🌀 **Replit**
-- 🎨 **CodePen**
-- 📦 **CodeSandbox**
-- 🚀 **StackBlitz**
-- 🏆 **Codeforces & AtCoder**
-- 🧪 **Kaggle & Google Colab**
+-  **GitHub**
+-  **LeetCode**
+-  **Replit**
+-  **CodePen**
+-  **CodeSandbox**
+-  **StackBlitz**
+-  **Codeforces & AtCoder**
+-  **Kaggle & Google Colab**
 - ...and many more!
 
 ---
 
-## ✅ Recent Improvements
+##  Recent Improvements
 
-- 🔄 **Unified AI Interface**: Seamlessly switch between Gemini and Hugging Face.
-- 📉 **Concept Heatmaps**: Visualized learning progress in the dashboard.
-- ⚡ **Optimized Caching**: Reduced latency for common boilerplate code.
-- 🛡️ **Health Probes**: Real-time monitoring of AI provider availability.
+-  **Unified AI Interface**: Seamlessly switch between Gemini and Hugging Face.
+-  **Concept Heatmaps**: Visualized learning progress in the dashboard.
+-  **Optimized Caching**: Reduced latency for common boilerplate code.
+-  **Health Probes**: Real-time monitoring of AI provider availability.
 
----
-
-## 📜 License
-
-Distributed under the MIT License. See `LICENSE` for more information.
-
----
+--
 
 <p align="center">
   Built with ❤️ for the developer community.
